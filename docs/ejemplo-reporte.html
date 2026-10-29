@@ -1,0 +1,864 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>legacy-lens · Tienda legacy (ejemplo)</title>
+<style>
+  :root {
+    --ink:#0f172a; --muted:#5b6679; --line:#e4e7f0; --bg:#f6f7fb; --card:#ffffff;
+    --accent:#4f46e5; --accent-soft:#eef0ff;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.55; }
+  .wrap { max-width:1080px; margin:0 auto; padding:40px 24px 72px; }
+  header.top { display:flex; flex-wrap:wrap; gap:24px; align-items:center; justify-content:space-between;
+    background:var(--card); border:1px solid var(--line); border-radius:18px; padding:28px 32px; }
+  .brand { font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:var(--accent); font-weight:700; }
+  h1 { margin:6px 0 6px; font-size:30px; letter-spacing:-.02em; }
+  .meta { color:var(--muted); font-size:13px; }
+  .gauge { display:flex; flex-direction:column; align-items:center; gap:4px; flex:0 0 auto; }
+  .gauge-ring { position:relative; width:160px; height:160px; }
+  .gauge-value { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    gap:1px; }
+  .gauge-value strong { font-size:38px; letter-spacing:-.03em; }
+  .gauge-value span { font-size:12px; color:var(--muted); transform:translateY(7px); }
+  .gauge-label { text-align:center; font-size:12px; font-weight:700; text-transform:uppercase;
+    letter-spacing:.1em; }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; margin:22px 0 8px; }
+  .kpi { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px 18px; }
+  .kpi strong { display:block; font-size:24px; letter-spacing:-.02em; }
+  .kpi span { font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; }
+  .kpi-note { display:block; margin-top:4px; font-size:11px; color:var(--muted); text-transform:none; letter-spacing:0; }
+  section { margin-top:34px; }
+  h2 { font-size:19px; margin:0 0 14px; display:flex; align-items:center; gap:10px; }
+  .h2-count { font-size:12px; font-weight:600; color:var(--muted); background:var(--accent-soft);
+    border-radius:999px; padding:2px 10px; }
+  .dims { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:14px; }
+  .dim { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px 18px; }
+  .dim-head { display:flex; justify-content:space-between; font-size:13px; font-weight:600; margin-bottom:8px; }
+  .bar { height:8px; background:#eceef6; border-radius:999px; overflow:hidden; }
+  .bar span { display:block; height:100%; border-radius:999px; }
+  .reasons { margin:10px 0 0; padding-left:16px; font-size:12px; color:var(--muted); }
+  .actions { list-style:none; margin:0; padding:0; display:grid; gap:10px; }
+  .action { display:flex; gap:14px; align-items:flex-start; background:var(--card);
+    border:1px solid var(--line); border-radius:14px; padding:14px 18px; }
+  .action p { margin:2px 0 0; font-size:13px; color:var(--muted); }
+  .prio { flex:0 0 auto; width:26px; height:26px; border-radius:50%; background:var(--accent);
+    color:#fff; font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:center; }
+  .effort { margin-left:auto; font-size:11px; text-transform:uppercase; letter-spacing:.08em;
+    border-radius:999px; padding:3px 10px; border:1px solid var(--line); color:var(--muted); }
+  .effort-alto { color:#b91c1c; border-color:#fecaca; background:#fef2f2; }
+  .effort-medio { color:#b45309; border-color:#fde68a; background:#fffbeb; }
+  .effort-bajo { color:#15803d; border-color:#bbf7d0; background:#f0fdf4; }
+  .table-wrap { overflow-x:auto; background:var(--card); border:1px solid var(--line);
+    border-radius:14px; }
+  .table-wrap table { border:none; border-radius:0; min-width:520px; }
+  table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line);
+    border-radius:14px; overflow:hidden; font-size:13px; }
+  th, td { text-align:left; padding:10px 14px; border-bottom:1px solid var(--line); }
+  th { font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); background:#fbfbfe; }
+  tr:last-child td { border-bottom:none; }
+  td.num { text-align:right; font-variant-numeric:tabular-nums; }
+  code { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px;
+    background:#f2f3f9; padding:1px 6px; border-radius:6px; }
+  .ok { color:#15803d; } .bad { color:#b91c1c; }
+  .findings { display:grid; gap:12px; }
+  .finding { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px 18px; }
+  .finding header { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .finding h4 { margin:0; font-size:15px; }
+  .sev { color:#fff; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.08em;
+    border-radius:999px; padding:2px 9px; }
+  .count { margin-left:auto; font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .detail { margin:6px 0 0; font-size:13px; color:var(--muted); }
+  .occ { list-style:none; margin:10px 0 0; padding:0; display:grid; gap:4px; }
+  .occ li { display:flex; gap:10px; font-size:12px; align-items:baseline; }
+  .loc { flex:0 0 auto; color:var(--accent); background:var(--accent-soft); }
+  .snippet { color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .more { color:var(--muted); font-style:italic; }
+  footer { margin-top:44px; color:var(--muted); font-size:12px; border-top:1px solid var(--line); padding-top:16px; }
+  @media (max-width:640px) {
+    .wrap { padding:20px 14px 48px; }
+    header.top { padding:20px; }
+    h1 { font-size:23px; }
+    .snippet { white-space:normal; }
+  }
+  @media print {
+    body { background:#fff; }
+    .wrap { max-width:none; padding:0; }
+    .finding, .kpi, .dim, table, .action { break-inside:avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="brand">legacy-lens · radiografia de un sistema legacy</div>
+      <h1>Tienda legacy (ejemplo)</h1>
+      <div class="meta">
+        Codigo: <code>examples/tienda-legacy/app</code> ·
+        Esquema: <code>examples/tienda-legacy/schema.sql</code> ·
+        Generado: 2026-10-29 19:36 UTC
+      </div>
+    </div>
+    
+    <div class="gauge">
+      <div class="gauge-ring">
+        <svg viewBox="0 0 160 160" width="160" height="160" role="img" aria-label="Indice 73 de 100">
+          <circle cx="80" cy="80" r="62" fill="none" stroke="#e6e8f0" stroke-width="14"/>
+          <circle cx="80" cy="80" r="62" fill="none" stroke="#ea580c" stroke-width="14"
+                  stroke-linecap="round" stroke-dasharray="389.6"
+                  stroke-dashoffset="105.2" transform="rotate(-90 80 80)"/>
+        </svg>
+        <div class="gauge-value"><strong>73</strong><span>/100</span></div>
+      </div>
+      <div class="gauge-label" style="color:#ea580c">Doloroso</div>
+    </div>
+    
+  </header>
+
+  <div class="kpis">
+    
+    <div class="kpi">
+      <strong>13</strong>
+      <span>tablas</span>
+      
+    </div>
+    
+    
+    <div class="kpi">
+      <strong>57</strong>
+      <span>columnas</span>
+      
+    </div>
+    
+    
+    <div class="kpi">
+      <strong>-</strong>
+      <span>filas</span>
+      <span class="kpi-note">sin conteos</span>
+    </div>
+    
+    
+    <div class="kpi">
+      <strong>-</strong>
+      <span>tamano en disco</span>
+      
+    </div>
+    
+    
+    <div class="kpi">
+      <strong>12</strong>
+      <span>archivos PHP</span>
+      
+    </div>
+    
+    
+    <div class="kpi">
+      <strong>234</strong>
+      <span>lineas</span>
+      
+    </div>
+    
+    
+    <div class="kpi">
+      <strong>12</strong>
+      <span>hallazgos altos</span>
+      
+    </div>
+    
+    
+    <div class="kpi">
+      <strong>14</strong>
+      <span>hallazgos medios</span>
+      
+    </div>
+    
+  </div>
+
+  <section>
+    <h2>Indice de dolor de migracion</h2>
+    <div class="dims">
+            <div class="dim">
+              <div class="dim-head">
+                <span>Esquema</span>
+                <strong style="color:#dc2626">83</strong>
+              </div>
+              <div class="bar"><span style="width:83%;background:#dc2626"></span></div>
+              <ul class="reasons"><li>2 de 13 tablas sin PK</li><li>cero foreign keys declaradas</li><li>7 relaciones solo por nombre de columna</li><li>nombres hostiles: 4</li><li>tablas MyISAM: 6</li><li>IDs como texto: 5</li><li>fechas como texto: 4</li><li>charset viejo: 7</li><li>tablas gemelas: 1</li></ul>
+            </div>
+            
+            <div class="dim">
+              <div class="dim-head">
+                <span>Datos</span>
+                <strong style="color:#16a34a">15</strong>
+              </div>
+              <div class="bar"><span style="width:15%;background:#16a34a"></span></div>
+              <ul class="reasons"><li>Sin conteos de filas (dump sin datos): el volumen no se pudo medir</li></ul>
+            </div>
+            
+            <div class="dim">
+              <div class="dim-head">
+                <span>Codigo</span>
+                <strong style="color:#ea580c">74</strong>
+              </div>
+              <div class="bar"><span style="width:74%;background:#ea580c"></span></div>
+              <ul class="reasons"><li>7 de 12 archivos tocan SQL</li><li>234 lineas de PHP</li></ul>
+            </div>
+            
+            <div class="dim">
+              <div class="dim-head">
+                <span>Seguridad</span>
+                <strong style="color:#dc2626">92</strong>
+              </div>
+              <div class="bar"><span style="width:92%;background:#dc2626"></span></div>
+              <ul class="reasons"><li>13 hallazgos de severidad alta</li><li>3 de severidad media</li></ul>
+            </div>
+            
+            <div class="dim">
+              <div class="dim-head">
+                <span>Modernidad</span>
+                <strong style="color:#dc2626">85</strong>
+              </div>
+              <div class="bar"><span style="width:85%;background:#dc2626"></span></div>
+              <ul class="reasons"><li>sin composer.json</li><li>sin namespaces</li><li>sin tests</li></ul>
+            </div>
+            </div>
+  </section>
+
+  <section>
+    <h2>Plan de accion</h2>
+    <ol class="actions">
+        <li class="action">
+          <span class="prio">1</span>
+          <div>
+            <strong>Reescribir el acceso a datos</strong>
+            <p>mysql_* no existe en PHP 7+: esa capa se escribe de nuevo, no se parchea. (10 casos)</p>
+          </div>
+          <span class="effort effort-alto">alto</span>
+        </li>
+        
+        <li class="action">
+          <span class="prio">2</span>
+          <div>
+            <strong>Pasar las consultas a prepared statements</strong>
+            <p>Se arregla de a una, con tests que cubran el caso real. (3 casos)</p>
+          </div>
+          <span class="effort effort-medio">medio</span>
+        </li>
+        
+        <li class="action">
+          <span class="prio">3</span>
+          <div>
+            <strong>Rotar el usuario de base y externalizar la configuracion</strong>
+            <p>El password de la base esta en un archivo versionado. (3 casos)</p>
+          </div>
+          <span class="effort effort-medio">medio</span>
+        </li>
+        
+        <li class="action">
+          <span class="prio">4</span>
+          <div>
+            <strong>Revisar y encapsular los comandos de sistema</strong>
+            <p>Cada exec/system es una puerta de ejecucion remota si toca el request. (2 casos)</p>
+          </div>
+          <span class="effort effort-alto">alto</span>
+        </li>
+        
+        <li class="action">
+          <span class="prio">5</span>
+          <div>
+            <strong>Rotar credenciales y moverlas a variables de entorno</strong>
+            <p>Una credencial que estuvo en el codigo ya esta comprometida, aunque se borre. (2 casos)</p>
+          </div>
+          <span class="effort effort-medio">medio</span>
+        </li>
+        
+        <li class="action">
+          <span class="prio">6</span>
+          <div>
+            <strong>Documentar las relaciones por convencion y decidir el modelo</strong>
+            <p>Sin FK, el ORM nuevo no puede inferir nada: hay que escribir el mapa a mano antes de migrar. (1 caso)</p>
+          </div>
+          <span class="effort effort-alto">alto</span>
+        </li>
+        
+        <li class="action">
+          <span class="prio">7</span>
+          <div>
+            <strong>Sacar el input del usuario del SQL</strong>
+            <p>Es inyeccion directa: cualquier migracion que copie estas consultas hereda el agujero. (1 caso)</p>
+          </div>
+          <span class="effort effort-alto">alto</span>
+        </li>
+        
+        <li class="action">
+          <span class="prio">8</span>
+          <div>
+            <strong>Rehashear contrasenas con password_hash()</strong>
+            <p>Se migra en el login: hash nuevo la primera vez que entra cada usuario. (1 caso)</p>
+          </div>
+          <span class="effort effort-medio">medio</span>
+        </li>
+        </ol>
+  </section>
+
+  
+        <section>
+          <h2>Esquema <span class="h2-count">11 reglas</span></h2>
+          <div class="findings">
+    <article class="finding">
+      <header>
+        <span class="sev" style="background:#dc2626">Alta</span>
+        <h4>Esquema sin claves foraneas</h4>
+        <span class="count">1 caso</span>
+      </header>
+      <p class="detail">La integridad se sostiene solo en el codigo: cualquier consulta puede dejar huerfanos.</p>
+      <ul class="occ"><li><code class="loc">esquema</code><span class="snippet">0 FOREIGN KEY declaradas en toda la base</span></li></ul>
+    </article>
+    
+    <article class="finding">
+      <header>
+        <span class="sev" style="background:#d97706">Media</span>
+        <h4>Relaciones por convencion de nombre</h4>
+        <span class="count">7 casos</span>
+      </header>
+      <p class="detail">Columnas tipo id_cliente que apuntan a otra tabla sin FK: hay que documentarlas antes de migrar.</p>
+      <ul class="occ"><li><code class="loc">esquema</code><span class="snippet">productos.id_categoria -&gt; categorias</span></li><li><code class="loc">esquema</code><span class="snippet">pedidos.id_cliente -&gt; clientes</span></li><li><code class="loc">esquema</code><span class="snippet">pedido_items.id_pedido -&gt; pedidos</span></li><li><code class="loc">esquema</code><span class="snippet">pedido_items.id_producto -&gt; productos</span></li><li><code class="loc">esquema</code><span class="snippet">pagos.id_pedido -&gt; pedidos</span></li><li><code class="loc">esquema</code><span class="snippet">log_accesos.id_usuario -&gt; usuarios</span></li><li><code class="loc">esquema</code><span class="snippet">envios.id_pedido -&gt; pedidos</span></li></ul>
+    </article>
+    
+    <article class="finding">
+      <header>
+        <span class="sev" style="background:#d97706">Media</span>
+        <h4>Tablas MyISAM (sin transacciones)</h4>
+        <span class="count">6 casos</span>
+      </header>
+      <p class="detail">MyISAM no soporta transacciones ni FK: migrar sin atomicidad es una ruleta.</p>
+      <ul class="occ"><li><code class="loc">esquema</code><span class="snippet">pedidos</span></li><li><code class="loc">esquema</code><span class="snippet">pedido_items</span></li><li><code class="loc">esquema</code><span class="snippet">pagos</span></li><li><code class="loc">esquema</code><span class="snippet">log_accesos</span></li><li><code class="loc">esquema</code><span class="snippet">proveedor</span></li><li><code class="loc">esquema</code><span class="snippet">reportes_mensuales</span></li></ul>
+    </article>
+    
+    <article class="finding">
+      <header>
+        <span class="sev" style="background:#d97706">Media</span>
+        <h4>Columnas que apuntan a tablas inexistentes</h4>
+        <span class="count">5 casos</span>
+      </header>
+      <p class="detail">El nombre promete una relacion que no existe: datos muertos o tablas que se borraron.</p>
+      <ul class="occ"><li><code class="loc">esquema</code><span class="snippet">clientes.id_localidad (sin tabla destino)</span></li><li><code class="loc">esquema</code><span class="snippet">pagos.id_metodo (sin tabla destino)</span></li><li><code class="loc">esquema</code><span class="snippet">pagos.id_factura (sin tabla destino)</span></li><li><code class="loc">esquema</code><span class="snippet">usuarios.id_rol (sin tabla destino)</span></li><li><code class="loc">esquema</code><span class="snippet">envios.id_transporte (sin tabla destino)</span></li></ul>
+    </article>
+    
+    <article class="finding">
+      <header>
+        <span class="sev" style="background:#d97706">Media</span>
+        <h4>Identificadores guardados como texto</h4>
+        <span class="count">5 casos</span>
+      </header>
+      <p class="detail">Los IDs en VARCHAR no comparan igual que un INT: joins lentos y orden lexicografico.</p>
+      <ul class="occ"><li><code class="loc">esquema</code><span class="snippet">clientes.id_localidad (varchar(10))</span></li><li><code class="loc">esquema</code><span class="snippet">pagos.id_metodo (varchar(6))</span></li><li><code class="loc">esquema</code><span class="snippet">usuarios.id_rol (varchar(4))</span></li><li><code class="loc">esquema</code><span class="snippet">log_accesos.id_usuario (varchar(20))</span></li><li><code class="loc">esquema</code><span class="snippet">envios.id_transporte (varchar(8))</span></li></ul>
+    </article>
+    
+    <article class="finding">
+      <header>
+        <span class="sev" style="background:#d97706">Media</span>
+        <h4>Nombres de tabla o columna hostiles</h4>
+        <span class="count">4 casos</span>
+      </header>
+      <p class="detail">Espacios, puntos, mayusculas o palabras reservadas obligan a escapar todo el tiempo.</p>
+      <ul class="occ"><li><code class="loc">esquema</code><span class="snippet">clientes.`password`</span></li><li><code class="loc">esquema</code><span class="snippet">reportes_mensuales.`total.&#x27;MES 1&#x27;`</span></li><li><code class="loc">esquema</code><span class="snippet">reportes_mensuales.`total.&#x27;MES 2&#x27;`</span></li><li><code class="loc">esquema</code><span class="snippet">reportes_mensuales.`Order`</span></li></ul>
+    </article>
+    
+    <article class="finding">
+      <header>
+        <span class="sev" style="background:#d97706">Media</span>
+        <h4>Fechas guardadas como texto</h4>
+        <span class="count">4 casos</span>
+      </header>
+      <p class="detail">Comparar y ordenar fechas en VARCHAR devuelve resultados incorrectos.</p>
+      <ul class="occ"><li><code class="loc">esquema</code><span class="snippet">productos.fecha_alta (varchar(10))</span></li><li><code class="loc">esquema</code><span class="snippet">pedidos.fecha (varchar(10))</span></li><li><code class="loc">esquema</code><span class="snippet">pagos.fecha_pago (varchar(10))</span></li><li><code class="loc">esquema</code><span class="snippet">envios.fecha_envio (varchar(10))</span></li></ul>
+    </article>
+    
+    <article class="finding">
+      <header>
+        <span class="sev" style="background:#d97706">Media</span>
+        <h4>Tablas sin clave primaria</h4>
+        <span class="count">2 casos</span>
+      </header>
+      <p class="detail">Sin PK no hay forma segura de actualizar una fila ni de idempotear una migracion.</p>
+      <ul class="occ"><li><code class="loc">esquema</code><span class="snippet">pedido_items</span></li><li><code class="loc">esquema</code><span class="snippet">log_accesos</span></li></ul>
+    </article>
+    
+    <article class="finding">
+      <header>
+        <span class="sev" style="background:#2563eb">Baja</span>
+        <h4>Charset distinto de utf8mb4</h4>
+        <span class="count">7 casos</span>
+      </header>
+      <p class="detail">latin1/utf8 de 3 bytes rompe emojis y acentos al pasar a un framework moderno.</p>
+      <ul class="occ"><li><code class="loc">esquema</code><span class="snippet">pedidos (latin1)</span></li><li><code class="loc">esquema</code><span class="snippet">pedido_items (latin1)</span></li><li><code class="loc">esquema</code><span class="snippet">pagos (latin1)</span></li><li><code class="loc">esquema</code><span class="snippet">usuarios (utf8)</span></li><li><code class="loc">esquema</code><span class="snippet">log_accesos (latin1)</span></li><li><code class="loc">esquema</code><span class="snippet">proveedor (latin1)</span></li><li><code class="loc">esquema</code><span class="snippet">reportes_mensuales (latin1)</span></li></ul>
+    </article>
+    
+    <article class="finding">
+      <header>
+        <span class="sev" style="background:#2563eb">Baja</span>
+        <h4>Columnas ENUM</h4>
+        <span class="count">1 caso</span>
+      </header>
+      <p class="detail">Un ENUM es un catalogo escondido en el DDL: agregar un valor es un ALTER TABLE.</p>
+      <ul class="occ"><li><code class="loc">esquema</code><span class="snippet">productos.activo (enum(&#x27;S&#x27;,&#x27;N&#x27;))</span></li></ul>
+    </article>
+    
+    <article class="finding">
+      <header>
+        <span class="sev" style="background:#2563eb">Baja</span>
+        <h4>Tablas con nombres casi iguales</h4>
+        <span class="count">1 caso</span>
+      </header>
+      <p class="detail">Suelen ser copias o restos de una migracion anterior: confirmar cual esta viva.</p>
+      <ul class="occ"><li><code class="loc">esquema</code><span class="snippet">proveedores ~ proveedor</span></li></ul>
+    </article>
+    </div>
+        </section>
+        
+        <section>
+          <h2>Seguridad <span class="h2-count">12 reglas</span></h2>
+          <div class="findings">
+    <article class="finding">
+      <header>
+        <span class="sev" style="background:#dc2626">Alta</span>
+        <h4>Credenciales de base en el codigo</h4>
+        <span class="count">3 casos</span>
+      </header>
+      <p class="detail">El acceso a la base esta escrito en un .php versionado.</p>
+      <ul class="occ"><li><code class="loc">config\database.php:3</code><span class="snippet">define(&#x27;DB_HOST&#x27;, &#x27;***&#x27;);</span></li><li><code class="loc">config\database.php:4</code><span class="snippet">define(&#x27;DB_USER&#x27;, &#x27;***&#x27;);</span></li><li><code class="loc">config\database.php:5</code><span class="snippet">define(&#x27;DB_PASSWORD&#x27;, &#x27;***&#x27;);</span></li></ul>
+    </article>
+    
+    <article class="finding">
+      <header>
+        <span class="sev" style="background:#dc2626">Alta</span>
+        <h4>Ejecucion de comandos del sistema</h4>
+        <span class="count">2 casos</span>
+      </header>
+      <p class="detail">Si el argumento toca datos del request, es ejecucion remota de comandos.</p>
+      <ul class="occ"><li><code class="loc">backup.php:7</code><span class="snippet">system(&quot;mysqldump &quot; . $base . &quot; &gt; /tmp/backup.sql&quot;);</span></li><li><code class="loc">backup.php:10</code><span class="snippet">$hoy = shell_exec(&#x27;date +%Y%m%d&#x27;);</span></li></ul>
+    </article>
+    
+    <article class="finding">
+      <header>
+        <span class="sev" style="background:#dc2626">Alta</span>
+        <h4>Credencial hardcodeada</h4>
+        <span class="count">2 casos</span>
+      </header>
+      <p class="detail">Credenciales en el codigo: hay que rotarlas y pasarlas a variables de entorno.</p>
+      <ul class="occ"><li><code class="loc">config\database.php:8</code><span class="snippet">$password = &#x27;***&#x27;;</span></li><li><code class="loc">config\database.php:9</code><span class="snippet">$api_key = &#x27;***&#x27;;</span></li></ul>
+    </article>
+    
+    <article class="finding">
+      <header>
+        <span class="sev" style="background:#dc2626">Alta</span>
+        <h4>Consulta SQL armada con datos del request</h4>
+        <span class="count">1 caso</span>
+      </header>
+      <p class="detail">Un parametro del usuario entra directo en el SQL: inyeccion segura.</p>
+      <ul class="occ"><li><code class="loc">clientes.php:13</code><span class="snippet">$sql = &quot;SELECT id, nombre, email FROM clientes WHERE nombre LIKE &#x27;%&quot; . $_GET[&#x27;buscar&#x27;] . &quot;%&#x27;&quot;;</span></li></ul>
+    </article>
+    
+    <article class="finding">
+      <header>
+        <span class="sev" style="background:#dc2626">Alta</span>
+        <h4>Hash debil para contrasenas</h4>
+        <span class="count">1 caso</span>
+      </header>
+      <p class="detail">MD5/SHA1 no sirven para contrasenas: password_hash() con bcrypt o argon2.</p>
+      <ul class="occ"><li><code class="loc">login.php:8</code><span class="snippet">$hash = md5($clave);</span></li></ul>
+    </article>
+    
+    <article class="finding">
+      <header>
+        <span class="sev" style="background:#dc2626">Alta</span>
+        <h4>eval() / assert() con codigo dinamico</h4>
+        <span class="count">1 caso</span>
+      </header>
+      <p class="detail">Ejecucion de codigo arbitrario: no tiene traduccion directa a un framework.</p>
+      <ul class="occ"><li><code class="loc">pago.php:10</code><span class="snippet">$total = eval($regla);</span></li></ul>
+    </article>
+    
+    <article class="finding">
+      <header>
+        <span class="sev" style="background:#dc2626">Alta</span>
+        <h4>include/require con ruta variable</h4>
+        <span class="count">1 caso</span>
+      </header>
+      <p class="detail">Inclusion remota de archivos (LFI/RFI) y dependencias invisibles para el IDE.</p>
+      <ul class="occ"><li><code class="loc">export.php:6</code><span class="snippet">include $pagina . &#x27;.php&#x27;;</span></li></ul>
+    </article>
+    
+    <article class="finding">
+      <header>
+        <span class="sev" style="background:#dc2626">Alta</span>
+        <h4>Acceso a archivos con datos del request</h4>
+        <span class="count">1 caso</span>
+      </header>
+      <p class="detail">Lectura o borrado de archivos controlado por el usuario.</p>
+      <ul class="occ"><li><code class="loc">export.php:15</code><span class="snippet">readfile($_GET[&#x27;descargar&#x27;]);</span></li></ul>
+    </article>
+    
+    <article class="finding">
+      <header>
+        <span class="sev" style="background:#dc2626">Alta</span>
+        <h4>preg_replace con modificador /e</h4>
+        <span class="count">1 caso</span>
+      </header>
+      <p class="detail">El modificador /e ejecuta codigo: se elimino en PHP 7.</p>
+      <ul class="occ"><li><code class="loc">admin.php:8</code><span class="snippet">$salida = preg_replace(&#x27;/\{(\w+)\}/e&#x27;, &#x27;$plantilla&#x27;, $_GET[&#x27;texto&#x27;]);</span></li></ul>
+    </article>
+    
+    <article class="finding">
+      <header>
+        <span class="sev" style="background:#d97706">Media</span>
+        <h4>Token predecible (md5/uniqid)</h4>
+        <span class="count">1 caso</span>
+      </header>
+      <p class="detail">Tokens de sesion o de recuperacion generados con funciones predecibles.</p>
+      <ul class="occ"><li><code class="loc">login.php:8</code><span class="snippet">$hash = md5($clave);</span></li></ul>
+    </article>
+    
+    <article class="finding">
+      <header>
+        <span class="sev" style="background:#d97706">Media</span>
+        <h4>unserialize() sobre datos externos</h4>
+        <span class="count">1 caso</span>
+      </header>
+      <p class="detail">Deserializacion insegura: preferir JSON.</p>
+      <ul class="occ"><li><code class="loc">pago.php:17</code><span class="snippet">$carrito = unserialize(base64_decode($_POST[&#x27;carrito&#x27;]));</span></li></ul>
+    </article>
+    
+    <article class="finding">
+      <header>
+        <span class="sev" style="background:#d97706">Media</span>
+        <h4>Redireccion con variable (open redirect)</h4>
+        <span class="count">1 caso</span>
+      </header>
+      <p class="detail">El destino del redirect lo decide el request.</p>
+      <ul class="occ"><li><code class="loc">reportes.php:24</code><span class="snippet">header(&quot;Location: $volver&quot;);</span></li></ul>
+    </article>
+    </div>
+        </section>
+        
+        <section>
+          <h2>Codigo <span class="h2-count">9 reglas</span></h2>
+          <div class="findings">
+    <article class="finding">
+      <header>
+        <span class="sev" style="background:#dc2626">Alta</span>
+        <h4>Funciones mysql_* (extintas desde PHP 7)</h4>
+        <span class="count">10 casos</span>
+      </header>
+      <p class="detail">No existen en PHP 7+: el archivo no corre sin reescribir el acceso a datos.</p>
+      <ul class="occ"><li><code class="loc">login.php:11</code><span class="snippet">$resultado = mysql_query($sql);</span></li><li><code class="loc">login.php:12</code><span class="snippet">if ($resultado &amp;&amp; mysql_num_rows($resultado) &gt; 0) {</span></li><li><code class="loc">login.php:13</code><span class="snippet">$fila = mysql_fetch_assoc($resultado);</span></li><li><code class="loc">pedidos.php:13</code><span class="snippet">while ($fila = mysql_fetch_assoc($rs)) {</span></li><li><code class="loc">productos.php:16</code><span class="snippet">while ($fila = mysql_fetch_array($rs)) {</span></li><li><code class="loc">reportes.php:10</code><span class="snippet">$fila = mysql_fetch_assoc($rs);</span></li><li><code class="loc">utils.php:19</code><span class="snippet">mysql_query($sql);</span></li><li><code class="loc">config\database.php:14</code><span class="snippet">$link = mysql_connect(DB_HOST, DB_USER, DB_PASSWORD);</span></li><li><code class="loc">config\database.php:15</code><span class="snippet">mysql_select_db(DB_NAME, $link);</span></li><li><code class="loc">includes\db.php:10</code><span class="snippet">$res = mysql_query($sql, $link);</span></li></ul>
+    </article>
+    
+    <article class="finding">
+      <header>
+        <span class="sev" style="background:#dc2626">Alta</span>
+        <h4>Query sin sentencia preparada</h4>
+        <span class="count">3 casos</span>
+      </header>
+      <p class="detail">El SQL se arma con interpolacion de variables en vez de parametros.</p>
+      <ul class="occ"><li><code class="loc">login.php:11</code><span class="snippet">$resultado = mysql_query($sql);</span></li><li><code class="loc">utils.php:19</code><span class="snippet">mysql_query($sql);</span></li><li><code class="loc">includes\db.php:10</code><span class="snippet">$res = mysql_query($sql, $link);</span></li></ul>
+    </article>
+    
+    <article class="finding">
+      <header>
+        <span class="sev" style="background:#d97706">Media</span>
+        <h4>SQL con variables interpoladas</h4>
+        <span class="count">2 casos</span>
+      </header>
+      <p class="detail">El string de la consulta se construye concatenando variables.</p>
+      <ul class="occ"><li><code class="loc">reportes.php:8</code><span class="snippet">$sql = &quot;SELECT anio, `total.&#x27;MES 1&#x27;`, `total.&#x27;MES 2&#x27;` FROM reportes_mensuales WHERE anio = $anio&quot;;</span></li><li><code class="loc">utils.php:18</code><span class="snippet">$sql = &quot;DELETE FROM pedidos WHERE id = $id&quot;;</span></li></ul>
+    </article>
+    
+    <article class="finding">
+      <header>
+        <span class="sev" style="background:#d97706">Media</span>
+        <h4>extract() / variables variables</h4>
+        <span class="count">2 casos</span>
+      </header>
+      <p class="detail">Variables que aparecen de la nada: imposible de tipar o testear.</p>
+      <ul class="occ"><li><code class="loc">clientes.php:7</code><span class="snippet">extract($_GET);</span></li><li><code class="loc">clientes.php:8</code><span class="snippet">extract($_POST);</span></li></ul>
+    </article>
+    
+    <article class="finding">
+      <header>
+        <span class="sev" style="background:#d97706">Media</span>
+        <h4>each() (extinta desde PHP 8.0)</h4>
+        <span class="count">1 caso</span>
+      </header>
+      <p class="detail">Se elimino en PHP 8: reemplazar por foreach.</p>
+      <ul class="occ"><li><code class="loc">pedidos.php:14</code><span class="snippet">list($id, $datos) = each($fila);</span></li></ul>
+    </article>
+    
+    <article class="finding">
+      <header>
+        <span class="sev" style="background:#d97706">Media</span>
+        <h4>Errores silenciados</h4>
+        <span class="count">1 caso</span>
+      </header>
+      <p class="detail">Los errores se ocultan en vez de corregirse; migrar asi es a ciegas.</p>
+      <ul class="occ"><li><code class="loc">includes\db.php:12</code><span class="snippet">error_reporting(0);</span></li></ul>
+    </article>
+    
+    <article class="finding">
+      <header>
+        <span class="sev" style="background:#2563eb">Baja</span>
+        <h4>session_start() repetido</h4>
+        <span class="count">6 casos</span>
+      </header>
+      <p class="detail">Sesiones abiertas en cada include: sintoma de que no hay bootstrap.</p>
+      <ul class="occ"><li><code class="loc">admin.php:3</code><span class="snippet">session_start();</span></li><li><code class="loc">clientes.php:3</code><span class="snippet">session_start();</span></li><li><code class="loc">clientes.php:4</code><span class="snippet">session_start();</span></li><li><code class="loc">utils.php:3</code><span class="snippet">session_start();</span></li><li><code class="loc">includes\db.php:4</code><span class="snippet">session_start();</span></li><li><code class="loc">includes\db.php:5</code><span class="snippet">session_start();</span></li></ul>
+    </article>
+    
+    <article class="finding">
+      <header>
+        <span class="sev" style="background:#2563eb">Baja</span>
+        <h4>utf8_encode / utf8_decode (deprecadas en 8.2)</h4>
+        <span class="count">3 casos</span>
+      </header>
+      <p class="detail">Deprecadas: migrar a mb_convert_encoding o a utf8mb4 de punta a punta.</p>
+      <ul class="occ"><li><code class="loc">productos.php:23</code><span class="snippet">&lt;td&gt;&lt;?php echo utf8_decode($f[&#x27;nombre&#x27;]); ?&gt;&lt;/td&gt;</span></li><li><code class="loc">utils.php:7</code><span class="snippet">return utf8_encode(trim($texto));</span></li><li><code class="loc">includes\db.php:20</code><span class="snippet">return utf8_encode($valor);</span></li></ul>
+    </article>
+    
+    <article class="finding">
+      <header>
+        <span class="sev" style="background:#2563eb">Baja</span>
+        <h4>Funciones eliminadas o deprecadas</h4>
+        <span class="count">2 casos</span>
+      </header>
+      <p class="detail">No existen en PHP 8: cada una rompe el archivo donde aparece.</p>
+      <ul class="occ"><li><code class="loc">admin.php:11</code><span class="snippet">$formatear = create_function(&#x27;$n&#x27;, &#x27;return number_format($n, 2, &quot;,&quot;, &quot;.&quot;);&#x27;);</span></li><li><code class="loc">utils.php:12</code><span class="snippet">return money_format(&#x27;%.2n&#x27;, $valor);</span></li></ul>
+    </article>
+    </div>
+        </section>
+        
+
+  <section>
+    <h2>Tablas <span class="h2-count">13</span></h2>
+    <div class="table-wrap">
+    <table>
+      <thead><tr><th>Tabla</th><th class="num">Filas</th><th class="num">Columnas</th>
+      <th>Motor</th><th>PK</th><th class="num">FK</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>clientes</code></td>
+          <td class="num">0*</td>
+          <td class="num">6</td>
+          <td>InnoDB</td>
+          <td class="ok">si</td>
+          <td class="num">0</td>
+        </tr>
+        
+        <tr>
+          <td><code>categorias</code></td>
+          <td class="num">0*</td>
+          <td class="num">2</td>
+          <td>InnoDB</td>
+          <td class="ok">si</td>
+          <td class="num">0</td>
+        </tr>
+        
+        <tr>
+          <td><code>productos</code></td>
+          <td class="num">0*</td>
+          <td class="num">6</td>
+          <td>InnoDB</td>
+          <td class="ok">si</td>
+          <td class="num">0</td>
+        </tr>
+        
+        <tr>
+          <td><code>pedidos</code></td>
+          <td class="num">0*</td>
+          <td class="num">6</td>
+          <td>MyISAM</td>
+          <td class="ok">si</td>
+          <td class="num">0</td>
+        </tr>
+        
+        <tr>
+          <td><code>pedido_items</code></td>
+          <td class="num">0*</td>
+          <td class="num">4</td>
+          <td>MyISAM</td>
+          <td class="bad">no</td>
+          <td class="num">0</td>
+        </tr>
+        
+        <tr>
+          <td><code>pagos</code></td>
+          <td class="num">0*</td>
+          <td class="num">6</td>
+          <td>MyISAM</td>
+          <td class="ok">si</td>
+          <td class="num">0</td>
+        </tr>
+        
+        <tr>
+          <td><code>usuarios</code></td>
+          <td class="num">0*</td>
+          <td class="num">5</td>
+          <td>InnoDB</td>
+          <td class="ok">si</td>
+          <td class="num">0</td>
+        </tr>
+        
+        <tr>
+          <td><code>log_accesos</code></td>
+          <td class="num">0*</td>
+          <td class="num">4</td>
+          <td>MyISAM</td>
+          <td class="bad">no</td>
+          <td class="num">0</td>
+        </tr>
+        
+        <tr>
+          <td><code>proveedores</code></td>
+          <td class="num">0*</td>
+          <td class="num">3</td>
+          <td>InnoDB</td>
+          <td class="ok">si</td>
+          <td class="num">0</td>
+        </tr>
+        
+        <tr>
+          <td><code>proveedor</code></td>
+          <td class="num">0*</td>
+          <td class="num">2</td>
+          <td>MyISAM</td>
+          <td class="ok">si</td>
+          <td class="num">0</td>
+        </tr>
+        
+        <tr>
+          <td><code>config</code></td>
+          <td class="num">0*</td>
+          <td class="num">3</td>
+          <td>InnoDB</td>
+          <td class="ok">si</td>
+          <td class="num">0</td>
+        </tr>
+        
+        <tr>
+          <td><code>reportes_mensuales</code></td>
+          <td class="num">0*</td>
+          <td class="num">5</td>
+          <td>MyISAM</td>
+          <td class="ok">si</td>
+          <td class="num">0</td>
+        </tr>
+        
+        <tr>
+          <td><code>envios</code></td>
+          <td class="num">0*</td>
+          <td class="num">5</td>
+          <td>InnoDB</td>
+          <td class="ok">si</td>
+          <td class="num">0</td>
+        </tr>
+        </tbody>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Relaciones inferidas <span class="h2-count">12</span></h2>
+    <div class="table-wrap">
+    <table>
+      <thead><tr><th>Columna</th><th>Destino</th><th>Tipo</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>productos.id_categoria</code></td>
+          <td class="ok">categorias</td>
+          <td>convencion</td>
+        </tr>
+        
+        <tr>
+          <td><code>pedidos.id_cliente</code></td>
+          <td class="ok">clientes</td>
+          <td>convencion</td>
+        </tr>
+        
+        <tr>
+          <td><code>pedido_items.id_pedido</code></td>
+          <td class="ok">pedidos</td>
+          <td>convencion</td>
+        </tr>
+        
+        <tr>
+          <td><code>pedido_items.id_producto</code></td>
+          <td class="ok">productos</td>
+          <td>convencion</td>
+        </tr>
+        
+        <tr>
+          <td><code>pagos.id_pedido</code></td>
+          <td class="ok">pedidos</td>
+          <td>convencion</td>
+        </tr>
+        
+        <tr>
+          <td><code>log_accesos.id_usuario</code></td>
+          <td class="ok">usuarios</td>
+          <td>convencion</td>
+        </tr>
+        
+        <tr>
+          <td><code>envios.id_pedido</code></td>
+          <td class="ok">pedidos</td>
+          <td>convencion</td>
+        </tr>
+        
+        <tr>
+          <td><code>clientes.id_localidad</code></td>
+          <td class="bad">&lt;sin tabla&gt;</td>
+          <td>huerfana</td>
+        </tr>
+        
+        <tr>
+          <td><code>pagos.id_metodo</code></td>
+          <td class="bad">&lt;sin tabla&gt;</td>
+          <td>huerfana</td>
+        </tr>
+        
+        <tr>
+          <td><code>pagos.id_factura</code></td>
+          <td class="bad">&lt;sin tabla&gt;</td>
+          <td>huerfana</td>
+        </tr>
+        
+        <tr>
+          <td><code>usuarios.id_rol</code></td>
+          <td class="bad">&lt;sin tabla&gt;</td>
+          <td>huerfana</td>
+        </tr>
+        
+        <tr>
+          <td><code>envios.id_transporte</code></td>
+          <td class="bad">&lt;sin tabla&gt;</td>
+          <td>huerfana</td>
+        </tr>
+        </tbody>
+    </table>
+    </div>
+  </section>
+
+  <footer>
+    <p><strong>legacy-lens</strong> analiza por heuristica: los hallazgos de codigo son candidatos a revisar,
+    no una auditoria formal. Los secretos se muestran enmascarados a proposito.</p>
+    <p>32 reglas con hallazgos · 12 relaciones inferidas ·
+    puntaje calculado con pesos esquema 30% / codigo 25% / seguridad 20% / datos 15% / modernidad 10%.</p>
+  </footer>
+</div>
+</body>
+</html>

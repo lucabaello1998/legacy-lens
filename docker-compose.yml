@@ -1,0 +1,37 @@
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: tienda
+      MYSQL_USER: tienda
+      MYSQL_PASSWORD: tienda
+    ports:
+      - "3307:3306"
+    volumes:
+      - ./examples/tienda-legacy/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./examples/tienda-legacy/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-utienda", "-ptienda"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  lens:
+    build: .
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - ./examples:/work:ro
+      - ./out:/out
+    command:
+      - scan
+      - --dsn
+      - mysql://tienda:tienda@mysql:3306/tienda
+      - --path
+      - /work/tienda-legacy/app
+      - --out
+      - /out
+      - --title
+      - Tienda legacy (demo con base real)
