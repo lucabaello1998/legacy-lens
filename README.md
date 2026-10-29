@@ -9,8 +9,8 @@ dump de esquema, y devuelve un informe HTML con un numero: **cuanto duele migrar
 
 ![Informe de ejemplo](docs/capturas/reporte.png)
 
-> El informe de ejemplo esta versionado en [`docs/ejemplo-reporte.html`](docs/ejemplo-reporte.html):
-> se puede abrir sin instalar nada.
+> **Ver el informe completo online:** <https://lucabaello1998.github.io/legacy-lens/> (generado sobre
+> el ejemplo, sin instalar nada).
 
 ---
 
