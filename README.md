@@ -3,6 +3,7 @@
 **Radiografia de un sistema legacy PHP/MySQL en un comando.** Apunta a una carpeta de codigo y a un
 dump de esquema, y devuelve un informe HTML con un numero: **cuanto duele migrarlo**.
 
+[![Release](https://img.shields.io/github/v/release/lucabaello1998/legacy-lens?label=release)](https://github.com/lucabaello1998/legacy-lens/releases/latest)
 [![CI](https://github.com/lucabaello1998/legacy-lens/actions/workflows/ci.yml/badge.svg)](https://github.com/lucabaello1998/legacy-lens/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.10%2B-3776ab)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-16a34a)](LICENSE)
