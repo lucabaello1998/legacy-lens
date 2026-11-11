@@ -9,11 +9,10 @@ dumps legacy tienen de todo: comentarios de mysqldump, tablas sin backticks,
 from __future__ import annotations
 
 import re
+from pathlib import Path
 
 from .model import Column, Schema, Table
 
-_RE_COMENTARIO_LINEA = re.compile(r"^\s*(--|#).*$", re.MULTILINE)
-_RE_COMENTARIO_BLOQUE = re.compile(r"/\*.*?\*/", re.DOTALL)
 _RE_CREATE = re.compile(
     r"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?"
     r"(?P<name>`[^`]+`|\"[^\"]+\"|[A-Za-z0-9_$.]+)\s*\(",
@@ -31,30 +30,83 @@ _RE_PK = re.compile(r"PRIMARY\s+KEY\s*\((?P<cols>[^)]*)\)", re.IGNORECASE)
 
 
 def _limpiar(sql: str) -> str:
-    sql = _RE_COMENTARIO_BLOQUE.sub(" ", sql)
-    sql = _RE_COMENTARIO_LINEA.sub("", sql)
-    return sql
+    """Saca comentarios de MySQL respetando los literales y los saltos de línea.
+
+    Con una regex se borraba `/* ... */` también adentro de un string
+    (``DEFAULT 'a/*b'``) y se perdían tablas enteras sin aviso. Los saltos se
+    conservan para que las posiciones sigan siendo las del archivo.
+    """
+    salida: list[str] = []
+    i, n = 0, len(sql)
+    while i < n:
+        caracter = sql[i]
+
+        if caracter in "'\"":
+            j = i + 1
+            while j < n:
+                if sql[j] == "\\":
+                    j += 2
+                    continue
+                if sql[j] == caracter:
+                    j += 1
+                    break
+                j += 1
+            salida.append(sql[i:j])
+            i = j
+            continue
+
+        if caracter == "/" and i + 1 < n and sql[i + 1] == "*":
+            fin = sql.find("*/", i + 2)
+            fin = n if fin < 0 else fin + 2
+            salida.append("\n" * sql.count("\n", i, fin))
+            i = fin
+            continue
+
+        # `-- ` (con espacio, como pide MySQL) y `#`.
+        if (
+            caracter == "-" and sql.startswith("--", i) and i + 2 < n and sql[i + 2] in " \t\r\n"
+        ) or (caracter == "#"):
+            fin = sql.find("\n", i)
+            fin = n if fin < 0 else fin
+            salida.append("\n" * sql.count("\n", i, fin))
+            i = fin
+            continue
+
+        salida.append(caracter)
+        i += 1
+    return "".join(salida)
 
 
 def _identificador(nombre: str) -> str:
-    return nombre.strip().strip('`"').strip()
+    # `PRIMARY KEY (`code`(10))` trae el prefijo de índice pegado: se descarta.
+    limpio = re.sub(r"\([^)]*\)", "", nombre)
+    return limpio.strip().strip('`"').strip()
 
 
 def _dividir_definiciones(cuerpo: str) -> list[str]:
-    """Separa por comas de primer nivel, respetando parentesis y comillas."""
+    """Separa por comas de primer nivel, respetando paréntesis y comillas escapadas."""
     partes: list[str] = []
     actual: list[str] = []
     profundidad = 0
     comilla = ""
-    for ch in cuerpo:
+    i = 0
+    while i < len(cuerpo):
+        ch = cuerpo[i]
         if comilla:
             actual.append(ch)
+            if ch == "\\" and i + 1 < len(cuerpo):
+                # `\'` no cierra el literal: se copia el siguiente caracter tal cual.
+                actual.append(cuerpo[i + 1])
+                i += 2
+                continue
             if ch == comilla:
                 comilla = ""
+            i += 1
             continue
         if ch in "'\"`":
             comilla = ch
             actual.append(ch)
+            i += 1
             continue
         if ch == "(":
             profundidad += 1
@@ -63,8 +115,10 @@ def _dividir_definiciones(cuerpo: str) -> list[str]:
         if ch == "," and profundidad == 0:
             partes.append("".join(actual).strip())
             actual = []
+            i += 1
             continue
         actual.append(ch)
+        i += 1
     if actual:
         partes.append("".join(actual).strip())
     return [p for p in partes if p]
@@ -88,8 +142,10 @@ def _parsear_columna(definicion: str) -> Column | None:
             return None
         nombre, resto = partes[0], partes[1].strip()
 
-    # Tipo: primera palabra + parentesis opcional.
-    m = re.match(r"([A-Za-z]+(?:\s+[A-Za-z]+)?)\s*(\([^)]*\))?", resto)
+    # Tipo: solo la primera palabra y su paréntesis. Antes se tomaban dos palabras
+    # cuando no había paréntesis y `text NOT NULL` quedaba como tipo "text not"
+    # (y ninguna regla lo reconocía como texto).
+    m = re.match(r"([A-Za-z]+)\s*(\([^)]*\))?", resto)
     if not m:
         return None
     tipo = m.group(1).lower()
@@ -107,6 +163,53 @@ def _parsear_columna(definicion: str) -> Column | None:
     return Column(name=nombre, type=tipo, nullable=nullable, default=default, extra=extra)
 
 
+def _columnas_pk(definicion: str) -> list[str]:
+    """Columnas de la PK, respetando el `(10)` de prefijo y las comillas.
+
+    Con `PRIMARY KEY (`code`(10))` una regex corta en el primer `)` y deja
+    `code`(10` como nombre de columna: la PK parece incompleta.
+    """
+    m = re.search(r"PRIMARY\s+KEY\s*\(", definicion, re.IGNORECASE)
+    if not m:
+        return []
+
+    inicio = m.end()
+    profundidad = 1
+    i = inicio
+    comilla = ""
+    while i < len(definicion) and profundidad > 0:
+        ch = definicion[i]
+        if comilla:
+            if ch == comilla:
+                comilla = ""
+        elif ch in "'\"`":
+            comilla = ch
+        elif ch == "(":
+            profundidad += 1
+        elif ch == ")":
+            profundidad -= 1
+        i += 1
+
+    cuerpo = definicion[inicio : i - 1]
+    return [_identificador(c) for c in cuerpo.split(",") if c.strip()]
+
+
+def _clausulas_de_tabla(definicion: str) -> bool:
+    """True si la definición es una cláusula de tabla y no una columna.
+
+    `CONSTRAINT pk PRIMARY KEY (...)` parece una columna llamada CONSTRAINT si no
+    se mira con cuidado, y eso generaba un "sin PK" falso.
+    """
+    mayus = definicion.strip().upper()
+    if mayus.startswith(
+        ("PRIMARY KEY", "FOREIGN KEY", "KEY ", "UNIQUE KEY", "INDEX ", "FULLTEXT", "SPATIAL")
+    ):
+        return True
+    if mayus.startswith("CONSTRAINT"):
+        return "PRIMARY KEY" in mayus or "FOREIGN KEY" in mayus or "UNIQUE" in mayus
+    return False
+
+
 def parsear_dump(sql: str, source: str = "dump.sql") -> Schema:
     """Extrae tablas, columnas, PKs y FKs de un dump MySQL."""
     texto = _limpiar(sql)
@@ -114,7 +217,7 @@ def parsear_dump(sql: str, source: str = "dump.sql") -> Schema:
 
     for match in _RE_CREATE.finditer(texto):
         nombre_tabla = _identificador(match.group("name"))
-        inicio = match.end()  # justo despues del parentesis de apertura
+        inicio = match.end()  # justo después del paréntesis de apertura
 
         profundidad = 1
         i = inicio
@@ -122,7 +225,10 @@ def parsear_dump(sql: str, source: str = "dump.sql") -> Schema:
         while i < len(texto) and profundidad > 0:
             ch = texto[i]
             if comilla:
-                if ch == comilla and texto[i - 1] != "\\":
+                if ch == "\\":
+                    i += 2
+                    continue
+                if ch == comilla:
                     comilla = ""
             elif ch in "'\"`":
                 comilla = ch
@@ -133,7 +239,16 @@ def parsear_dump(sql: str, source: str = "dump.sql") -> Schema:
             i += 1
 
         cuerpo = texto[inicio : i - 1]
-        cola = texto[i : i + 400]
+
+        # Las opciones de la tabla terminan en el `;` o en el próximo CREATE: la
+        # ventana fija hacía que una tabla sin ENGINE heredara el de la siguiente.
+        fin_cola = len(texto)
+        for corte in (";", "CREATE "):
+            encontrado = texto.find(corte, i)
+            if encontrado != -1:
+                fin_cola = min(fin_cola, encontrado)
+        cola = texto[i:fin_cola]
+
         tabla = Table(name=nombre_tabla)
 
         motor = _RE_ENGINE.search(cola)
@@ -144,15 +259,10 @@ def parsear_dump(sql: str, source: str = "dump.sql") -> Schema:
             tabla.charset = charset.group(1)
 
         for definicion in _dividir_definiciones(cuerpo):
-            mayus = definicion.upper()
-            if mayus.startswith("PRIMARY KEY"):
-                pk = _RE_PK.search(definicion)
-                if pk:
-                    tabla.primary_key = [
-                        _identificador(c) for c in pk.group("cols").split(",") if c.strip()
-                    ]
-                continue
-            if mayus.startswith(("KEY ", "UNIQUE KEY", "INDEX ", "FULLTEXT", "CONSTRAINT")):
+            if _clausulas_de_tabla(definicion):
+                columnas_pk = _columnas_pk(definicion)
+                if columnas_pk:
+                    tabla.primary_key = columnas_pk
                 fk = _RE_FK.search(definicion)
                 if fk:
                     tabla.foreign_keys.append(
@@ -167,7 +277,7 @@ def parsear_dump(sql: str, source: str = "dump.sql") -> Schema:
             if columna:
                 tabla.columns.append(columna)
 
-        # La PK se declara despues de las columnas: se marca al final.
+        # La PK se declara después de las columnas: se marca al final.
         for nombre_pk in tabla.primary_key:
             columna = tabla.column(nombre_pk)
             if columna:
@@ -178,6 +288,19 @@ def parsear_dump(sql: str, source: str = "dump.sql") -> Schema:
     return schema
 
 
+def _decodificar(datos: bytes) -> str:
+    """Decodifica el dump según el BOM.
+
+    En Windows, `>` de PowerShell 5.1 guarda UTF-16: leerlo como UTF-8 daba un
+    esquema con cero tablas y ningún error.
+    """
+    if datos.startswith((b"\xff\xfe", b"\xfe\xff")):
+        return datos.decode("utf-16", "replace")
+    if datos.startswith(b"\xef\xbb\xbf"):
+        return datos[3:].decode("utf-8", "replace")
+    return datos.decode("utf-8", "replace")
+
+
 def leer_dump(path: str) -> Schema:
-    with open(path, encoding="utf-8", errors="replace") as fh:
-        return parsear_dump(fh.read(), source=path)
+    datos = Path(path).read_bytes()
+    return parsear_dump(_decodificar(datos), source=path)

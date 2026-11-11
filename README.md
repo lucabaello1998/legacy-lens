@@ -39,7 +39,12 @@ escritas en un `.php` y la mitad del SQL se arma concatenando `$_POST`. Antes de
   `eval`, `include` variable, `system`, `unserialize`, `md5` para contrasenas, salida sin escapar,
   errores silenciados y funciones extintas.
 - **Secretos**: credenciales, claves de base, access keys de AWS y claves privadas. **Se muestran
-  enmascaradas**: el informe nunca imprime el valor, solo donde esta.
+  enmascaradas**: el informe nunca imprime el valor, solo donde está.
+
+  El enmascarado cubre **todos** los literales de la línea, no solo los de las reglas de secretos:
+  `mysql_connect("localhost", "root", "***")` sale así porque la línea completa se publica. Los
+  snippets se pueden compartir o subir a un Pages sin filtrar una contraseña, aunque igual hay que
+  rotarla: si estaba en el código, estuvo expuesta.
 
 ## Instalacion
 
@@ -123,7 +128,7 @@ ticket. `--format json` genera solo uno.
 | `--out DIR` | donde escribir el informe (default `legacy-lens-out`) |
 | `--format` | `html,json,md` (default los tres) |
 | `--alias` | alias de tablas: `--alias tec=tecnicos,cli=clientes` |
-| `--fail-over N` | sale con codigo 2 si el indice llega a N (para CI) |
+| `--fail-over N` | sale con código **3** si el índice llega a N (para CI; el 2 queda para un comando mal escrito) |
 | `--quiet` | no imprime el resumen en consola |
 
 ### Comandos
@@ -224,7 +229,7 @@ mv docs/report.html docs/ejemplo-reporte.html
 ```
 
 `docs/` se sirve con GitHub Pages (*Settings → Pages → Deploy from a branch → main / docs*).
-El workflow de CI no publica nada: valida lint, los 50 tests, la imagen Docker y que el escaneo
+El workflow de CI no publica nada: valida lint, los 70 tests, la imagen Docker y que el escaneo
 dentro del contenedor genere un informe no vacio.
 
 ## Origen
@@ -251,7 +256,7 @@ pytest -q
 ruff check .
 ```
 
-50 tests cubren el parser de dumps, la inferencia de relaciones, las reglas de codigo, el calculo del
+70 tests cubren el parser de dumps, la inferencia de relaciones, las reglas de codigo, el calculo del
 indice y la generacion de los tres formatos.
 
 ## Licencia

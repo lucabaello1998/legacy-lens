@@ -360,10 +360,15 @@ def generar_html(report: Report) -> str:
 """
 
 
+def _md(texto: object) -> str:
+    """Texto seguro para una línea de markdown: `|` y saltos rompen la estructura."""
+    return " ".join(str(texto).replace("|", "\\|").split())
+
+
 def generar_markdown(report: Report) -> str:
     s = report.schema
     lineas = [
-        f"# legacy-lens · {report.title}",
+        f"# legacy-lens · {_md(report.title)}",
         "",
         f"- Codigo: `{report.target_path}`",
         f"- Esquema: `{s.source}`",
@@ -379,18 +384,20 @@ def generar_markdown(report: Report) -> str:
             "|---|---:|---:|",
         ]
         for d in report.score.dimensions:
-            lineas.append(f"| {d.label} | {d.value} | {int(d.weight * 100)}% |")
+            lineas.append(f"| {_md(d.label)} | {d.value} | {int(d.weight * 100)}% |")
     if report.actions:
         lineas += ["", "## Plan de accion", ""]
         for a in report.actions:
-            lineas.append(f"{a.priority}. **{a.title}** ({a.effort}) — {a.why}")
+            lineas.append(f"{a.priority}. **{_md(a.title)}** ({a.effort}) — {_md(a.why)}")
     for categoria in ("esquema", "seguridad", "codigo"):
         hallazgos = report.by_category(categoria)
         if not hallazgos:
             continue
         lineas += ["", f"## {CAT_LABEL.get(categoria, categoria)}", ""]
         for f in hallazgos:
-            lineas.append(f"- **{f.title}** — {f.count} caso(s), {f.affected_files} archivo(s)")
+            lineas.append(
+                f"- **{_md(f.title)}** — {f.count} caso(s), {f.affected_files} archivo(s)"
+            )
     lineas += ["", "---", "_Generado con legacy-lens._"]
     return "\n".join(lineas) + "\n"
 

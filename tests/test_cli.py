@@ -39,7 +39,7 @@ def test_scan_detecta_el_desastre_del_ejemplo(tmp_path):
     assert datos["score"]["total"] >= 50
 
 
-def test_fail_over_devuelve_codigo_2(tmp_path):
+def test_fail_over_devuelve_codigo_3(tmp_path):
     assert (
         main(
             [
@@ -55,7 +55,7 @@ def test_fail_over_devuelve_codigo_2(tmp_path):
                 "1",
             ]
         )
-        == 2
+        == 3
     )
 
 

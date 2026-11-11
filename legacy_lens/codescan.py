@@ -21,13 +21,15 @@ MAX_OCURRENCIAS_POR_REGLA = 25
 MAX_ARCHIVOS = 20000
 
 # Como se tapa cada regla que expone valores: se conserva lo que no es secreto
-# (nombre de la variable o de la constante) y se tapa el valor.
+# (nombre de la variable o de la constante) y se tapa el valor. El default es
+# tapar TODO literal: el informe se publica, y una linea como
+# `mysql_connect("localhost", "root", "Pa55w0rd!")` no puede salir entera.
 MASCARA = {
-    "secret_hardcodeado": "ultimo",
     "credencial_db": "primero",
-    "clave_privada": "ninguno",
-    "aws_key": "ninguno",
+    "aws_key": "token",
+    "clave_privada": "token",
 }
+MASCARA_POR_DEFECTO = "ninguno"
 
 
 @dataclass(frozen=True)
@@ -63,7 +65,7 @@ REGLAS: tuple[Rule, ...] = (
         "Query sin sentencia preparada",
         "alta",
         "codigo",
-        r"(?:mysqli_query|->query|mysql_query)\s*\(\s*[^,)]*\$",
+        r"(?:mysql_query)\s*\(\s*[^)]*\$|mysqli_query\s*\(\s*[^,)]+,\s*[^)]*\$|->query\s*\(\s*[^)]*\$",
         "El SQL se arma con interpolacion de variables en vez de parametros.",
     ),
     Rule(
@@ -80,8 +82,9 @@ REGLAS: tuple[Rule, ...] = (
         "Funciones mysql_* (extintas desde PHP 7)",
         "alta",
         "codigo",
-        r"\bmysql_(?:query|connect|pconnect|fetch_array|fetch_assoc|fetch_row|num_rows|"
-        r"real_escape_string|select_db|error|close|result)\s*\(",
+        r"\bmysql_(?:query|connect|pconnect|fetch_array|fetch_assoc|fetch_object|fetch_row|num_rows|"
+        r"num_fields|field_name|insert_id|affected_rows|free_result|set_charset|db_query|list_tables|ping|"
+        r"real_escape_string|escape_string|select_db|error|close|result)\s*\(",
         "No existen en PHP 7+: el archivo no corre sin reescribir el acceso a datos.",
     ),
     Rule(
@@ -129,7 +132,7 @@ REGLAS: tuple[Rule, ...] = (
         "Ejecucion de comandos del sistema",
         "alta",
         "seguridad",
-        r"\b(?:system|exec|shell_exec|passthru|popen|proc_open)\s*\(",
+        r"(?<!->)(?<!::)\b(?:system|exec|shell_exec|passthru|popen|proc_open)\s*\(",
         "Si el argumento toca datos del request, es ejecucion remota de comandos.",
     ),
     Rule(
@@ -246,7 +249,8 @@ REGLAS: tuple[Rule, ...] = (
         "Funciones eliminadas o deprecadas",
         "baja",
         "codigo",
-        r"\b(?:create_function|money_format|ereg|eregi|split|mysql_escape_string|get_magic_quotes_gpc)\s*\(",
+        r"\b(?:create_function|money_format|ereg|eregi|ereg_replace|eregi_replace|split|spliti|"
+        r"mysql_escape_string|get_magic_quotes_gpc|mysql_result|mysql_field_name)\s*\(",
         "No existen en PHP 8: cada una rompe el archivo donde aparece.",
     ),
 )
@@ -254,43 +258,127 @@ REGLAS: tuple[Rule, ...] = (
 _RE_SQL = re.compile(SQL_KEYWORDS, re.IGNORECASE)
 _RE_SESSION = re.compile(r"\bsession_start\s*\(", re.IGNORECASE)
 _RE_NAMESPACE = re.compile(r"^\s*namespace\s+[A-Za-z_]", re.MULTILINE)
-_RE_COMENTARIO = re.compile(r"^[ \t]*(?://|#|\*).*$", re.MULTILINE)
+
+
+def _sin_comentarios(texto: str) -> str:
+    """Saca los comentarios PHP sin tocar los literales ni los saltos de línea.
+
+    Los saltos se conservan (reemplazando el comentario por espacios) para que el
+    número de línea del informe siga siendo el del archivo. Antes solo se
+    filtraban las líneas que empiezan con `//`, `#` o `*`: un bloque `/* ... */`
+    con una contraseña adentro se reportaba como hallazgo.
+    """
+    salida: list[str] = []
+    i, n = 0, len(texto)
+    mientras_salto = "\n"
+    while i < n:
+        caracter = texto[i]
+
+        if caracter in "'\"":
+            j = i + 1
+            while j < n:
+                if texto[j] == "\\":
+                    j += 2
+                    continue
+                if texto[j] == caracter:
+                    j += 1
+                    break
+                j += 1
+            salida.append(texto[i:j])
+            i = j
+            continue
+
+        if caracter == "/" and i + 1 < n and texto[i + 1] == "*":
+            fin = texto.find("*/", i + 2)
+            fin = n if fin < 0 else fin + 2
+            salida.append(mientras_salto * texto.count("\n", i, fin))
+            i = fin
+            continue
+
+        if (caracter == "/" and i + 1 < n and texto[i + 1] == "/") or caracter == "#":
+            fin = texto.find("\n", i)
+            fin = n if fin < 0 else fin
+            salida.append(mientras_salto * texto.count("\n", i, fin))
+            i = fin
+            continue
+
+        salida.append(caracter)
+        i += 1
+    return "".join(salida)
 
 
 def _archivos_php(base: str) -> list[str]:
     encontrados: list[str] = []
+    raiz_abs = os.path.realpath(base)
     for raiz, dirs, archivos in os.walk(base):
         dirs[:] = [d for d in dirs if d.lower() not in DIRS_IGNORADOS]
         for nombre in archivos:
-            if os.path.splitext(nombre)[1].lower() in EXTENSIONES:
-                encontrados.append(os.path.join(raiz, nombre))
-                if len(encontrados) >= MAX_ARCHIVOS:
-                    return encontrados
+            if os.path.splitext(nombre)[1].lower() not in EXTENSIONES:
+                continue
+            ruta = os.path.join(raiz, nombre)
+            # Un symlink puede apuntar a ~/.ssh: si resuelve fuera del árbol que
+            # pidió analizar el usuario, no se lee.
+            real = os.path.realpath(ruta)
+            if os.path.commonpath([raiz_abs, real]) != raiz_abs:
+                continue
+            encontrados.append(ruta)
+            if len(encontrados) >= MAX_ARCHIVOS:
+                return encontrados
     return encontrados
 
 
-def _enmascarar(texto: str, conservar: str = "ultimo") -> str:
+def _literales(texto: str) -> list[tuple[int, int]]:
+    """Posiciones (inicio, fin) del contenido de cada literal entre comillas.
+
+    Se recorre a mano en vez de usar una expresión regular porque hay que
+    respetar los escapes: en `'pa\\'ss'` la comilla del medio no cierra el
+    literal (con una regex ingenua, la parte después del escape se publicaba).
+    """
+    tramos: list[tuple[int, int]] = []
+    i = 0
+    n = len(texto)
+    while i < n:
+        comilla = texto[i]
+        if comilla not in "'\"":
+            i += 1
+            continue
+        inicio = i + 1
+        j = inicio
+        while j < n:
+            if texto[j] == "\\":
+                j += 2
+                continue
+            if texto[j] == comilla:
+                break
+            j += 1
+        tramos.append((inicio, min(j, n)))
+        i = j + 1
+    return tramos
+
+
+def _enmascarar(texto: str, conservar: str = "ninguno") -> str:
     """Tapa los literales entre comillas de un fragmento.
 
-    - conservar="ultimo": deja ver todos menos el ultimo (credencial = valor).
-    - conservar="primero": deja ver el primero (define('DB_HOST', '***')).
-    - conservar="ninguno": tapa todo (claves, tokens).
+    - conservar="ninguno": tapa todos (``mysql_connect("***", "***", "***")``).
+    - conservar="primero": deja ver el primero (``define('DB_HOST', '***')``).
+    - conservar="ultimo": deja ver todos menos el último (``$pass = '***'``).
     """
-    literales = list(re.finditer(r"(['\"])([^'\"]{3,})\1", texto))
-    if not literales:
+    tramos = _literales(texto)
+    if not tramos:
         return "***"
     if conservar == "primero":
         visibles = {0}
     elif conservar == "ultimo":
-        visibles = set(range(len(literales) - 1))
+        visibles = set(range(len(tramos) - 1))
     else:
         visibles = set()
+
     salida: list[str] = []
     cursor = 0
-    for i, m in enumerate(literales):
-        salida.append(texto[cursor : m.start(2)])
-        salida.append(m.group(2) if i in visibles else "***")
-        cursor = m.end(2)
+    for i, (inicio, fin) in enumerate(tramos):
+        salida.append(texto[cursor:inicio])
+        salida.append(texto[inicio:fin] if i in visibles else "***")
+        cursor = fin
     salida.append(texto[cursor:])
     return "".join(salida)
 
@@ -314,16 +402,17 @@ def escanear_codigo(
     archivos_por_regla: dict[str, set[str]] = {}
     totales: dict[str, int] = {}
     nombres = _archivos_php(base)
-    stats.files = len(nombres)
     stats.has_composer = os.path.exists(os.path.join(base, "composer.json")) or os.path.exists(
         os.path.join(os.path.dirname(os.path.abspath(base)), "composer.json")
     )
 
+    leidos = 0
     for path in nombres:
         try:
             contenido = _leer(path)
         except OSError:
             continue
+        leidos += 1
         relativo = os.path.relpath(path, base)
         lineas = contenido.splitlines()
         stats.bytes += len(contenido.encode("utf-8", errors="replace"))
@@ -338,7 +427,7 @@ def escanear_codigo(
             stats.largest.append((relativo, len(lineas)))
 
         # Se analiza sin comentarios: un comentario no ejecuta SQL ni guarda claves.
-        limpio = _RE_COMENTARIO.sub("", contenido)
+        limpio = _sin_comentarios(contenido)
         for regla in REGLAS:
             coincidencias = list(re.finditer(regla.pattern, limpio))
             if not coincidencias:
@@ -361,17 +450,20 @@ def escanear_codigo(
                     break
                 numero = limpio.count("\n", 0, m.start()) + 1
                 original = lineas[numero - 1] if numero - 1 < len(lineas) else m.group(0)
-                if regla.mask:
-                    modo = MASCARA.get(regla.id, "ninguno")
-                    if modo == "ultimo":
-                        original = original.replace(m.group(0), _enmascarar(m.group(0), "ultimo"))
-                    else:
-                        original = _enmascarar(original, modo)
+                modo = MASCARA.get(regla.id, MASCARA_POR_DEFECTO)
+                if modo == "token":
+                    # El secreto ES el match (una AKIA... o el encabezado de una
+                    # clave privada): no está entre comillas, así que se tapa aparte.
+                    original = original.replace(m.group(0), "***")
+                original = _enmascarar(original, "ninguno" if modo == "token" else modo)
                 snippet = _recortar(original)
                 hallazgo.occurrences.append(Occurrence(file=relativo, line=numero, snippet=snippet))
 
     stats.largest.sort(key=lambda x: x[1], reverse=True)
     stats.largest = stats.largest[:10]
+    # Solo cuentan los archivos que se pudieron leer: si no, la proporción
+    # with_sql/files queda diluida por archivos que fallaron.
+    stats.files = leidos
 
     # Tests: la ausencia es en si misma un hallazgo de modernidad.
     stats.has_tests = any(os.path.isdir(os.path.join(base, d)) for d in ("tests", "test", "spec"))

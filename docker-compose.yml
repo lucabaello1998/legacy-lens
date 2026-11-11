@@ -7,7 +7,7 @@ services:
       MYSQL_USER: tienda
       MYSQL_PASSWORD: tienda
     ports:
-      - "3307:3306"
+      - "127.0.0.1:3307:3306"
     volumes:
       - ./examples/tienda-legacy/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
       - ./examples/tienda-legacy/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro

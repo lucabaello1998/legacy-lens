@@ -218,8 +218,13 @@ def revisar_esquema(schema: Schema, relaciones: list[Relation]) -> list[Finding]
 
     gemelas = []
     nombres = [t.name.lower() for t in schema.tables]
-    for i, a in enumerate(nombres):
-        for b in nombres[i + 1 :]:
+    # Si dos nombres difieren en más de 2 caracteres no pueden tener distancia ≤ 2:
+    # ordenar por largo y cortar ahí evita el O(n²) en dumps de miles de tablas.
+    ordenados = sorted(nombres, key=len)
+    for i, a in enumerate(ordenados):
+        for b in ordenados[i + 1 :]:
+            if len(b) - len(a) > 2:
+                break
             if a == b or min(len(a), len(b)) < 5:
                 continue
             if _levenshtein(a, b) <= 2:

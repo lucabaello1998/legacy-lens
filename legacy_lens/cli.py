@@ -15,6 +15,8 @@ from .report import escribir
 from .schemacheck import revisar_esquema
 from .score import calcular_score, plan_de_accion
 
+FORMATOS = frozenset({"html", "json", "md"})
+
 
 def _parsear_alias(texto: str | None) -> dict[str, str]:
     if not texto:
@@ -32,11 +34,38 @@ def _barra(valor: int, ancho: int = 20) -> str:
     return "#" * lleno + "." * (ancho - lleno)
 
 
+def _ruta_publica(ruta: str | None) -> str:
+    """Ruta sin la carpeta del usuario, para el informe que se publica.
+
+    Mostrar `C:\\Users\\luca\\Documentos\\...` no aporta nada y revela la máquina.
+    Si la ruta cae dentro del directorio actual se muestra relativa; si no, solo
+    el nombre del archivo o de la carpeta.
+    """
+    if not ruta:
+        return ""
+    try:
+        relativa = os.path.relpath(os.path.abspath(ruta), os.getcwd())
+    except (ValueError, OSError):
+        return os.path.basename(ruta.rstrip("/\\"))
+    if relativa.startswith(".."):
+        return os.path.basename(os.path.abspath(ruta).rstrip("/\\"))
+    return relativa.replace("\\", "/")
+
+
 def _analizar(args: argparse.Namespace) -> Report:
     if not args.path and not args.dump and not args.dsn:
         raise SystemExit("Nada para analizar: pasa --path, --dump o --dsn")
 
-    schema = leer_dsn_o_dump(args.dsn, args.dump)
+    if args.dump and not os.path.isfile(args.dump):
+        raise SystemExit(f"No existe el dump: {args.dump}")
+
+    try:
+        schema = leer_dsn_o_dump(args.dsn, args.dump)
+    except (OSError, ValueError) as exc:
+        # Un dump ilegible o un DSN con el puerto mal escrito no puede terminar en
+        # un traceback: es un error de uso.
+        raise SystemExit(f"No se pudo leer el esquema: {exc}") from exc
+
     code_stats = CodeStats()
     hallazgos_codigo = []
     if args.path:
@@ -45,13 +74,15 @@ def _analizar(args: argparse.Namespace) -> Report:
         code_stats, hallazgos_codigo = escanear_codigo(args.path)
 
     schema_obj = schema or Schema()
+    if args.dump:
+        schema_obj.source = _ruta_publica(args.dump)
     relaciones = inferir_relaciones(schema_obj, _parsear_alias(args.alias))
     hallazgos_esquema = revisar_esquema(schema_obj, relaciones)
 
     report = Report(
         title=args.title
         or os.path.basename(os.path.abspath(args.path or args.dump or args.dsn or ".")),
-        target_path=args.path or "",
+        target_path=_ruta_publica(args.path),
         schema=schema_obj,
         code=code_stats,
         findings=hallazgos_esquema + hallazgos_codigo,
@@ -97,9 +128,23 @@ def _imprimir_resumen(report: Report, salidas: list[str]) -> None:
 
 
 def cmd_scan(args: argparse.Namespace) -> int:
+    formatos = tuple(f.strip().lower() for f in args.format.split(",") if f.strip())
+    desconocidos = [f for f in formatos if f not in FORMATOS]
+    if not formatos or desconocidos:
+        print(
+            f"error: formato desconocido {', '.join(desconocidos) or '(vacío)'}. "
+            f"Usá {', '.join(sorted(FORMATOS))}.",
+            file=sys.stderr,
+        )
+        return 2
+
     report = _analizar(args)
-    formatos = tuple(f.strip() for f in args.format.split(",") if f.strip())
-    salidas = escribir(report, args.out, formatos)
+    try:
+        salidas = escribir(report, args.out, formatos)
+    except OSError as exc:
+        print(f"error: no se pudo escribir en {args.out}: {exc.strerror or exc}", file=sys.stderr)
+        return 1
+
     if not args.quiet:
         _imprimir_resumen(report, salidas)
     if args.fail_over is not None and report.score and report.score.total >= args.fail_over:
@@ -108,7 +153,9 @@ def cmd_scan(args: argparse.Namespace) -> int:
                 f"\nFalla el umbral: {report.score.total} >= {args.fail_over}",
                 file=sys.stderr,
             )
-        return 2
+        # 3 y no 2: argparse ya usa 2 para "comando mal escrito", y un CI tiene
+        # que poder distinguir "superó el umbral" de "la línea de comandos está mal".
+        return 3
     return 0
 
 
@@ -146,7 +193,7 @@ def construir_parser() -> argparse.ArgumentParser:
     scan.add_argument("--format", default="html,json,md", help="html,json,md")
     scan.add_argument("--alias", help="alias de tablas: tec=tecnicos,cli=clientes")
     scan.add_argument(
-        "--fail-over", type=int, help="sale con codigo 2 si el indice llega a este valor"
+        "--fail-over", type=int, help="sale con codigo 3 si el indice llega a este valor"
     )
     scan.add_argument("--quiet", action="store_true", help="no imprime el resumen")
     scan.set_defaults(func=cmd_scan)

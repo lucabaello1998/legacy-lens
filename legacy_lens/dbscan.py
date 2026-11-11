@@ -23,9 +23,16 @@ def _parsear_dsn(dsn: str) -> dict:
     partes = urlparse(dsn)
     if not partes.hostname or not partes.path.strip("/"):
         raise ErrorConexion("DSN incompleto: mysql://usuario:clave@host:puerto/base")
+    try:
+        puerto = partes.port or 3306
+    except ValueError as exc:
+        # urllib lanza un ValueError en inglés ("Port could not be cast...").
+        raise ErrorConexion(
+            "El puerto del DSN no es un número: mysql://usuario:clave@host:3306/base"
+        ) from exc
     return {
         "host": partes.hostname,
-        "port": partes.port or 3306,
+        "port": puerto,
         "user": unquote(partes.username or ""),
         "password": unquote(partes.password or ""),
         "database": partes.path.strip("/"),

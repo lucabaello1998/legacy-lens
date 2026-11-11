@@ -37,9 +37,10 @@ ALIAS_POR_DEFECTO: dict[str, str] = {
     "loc": "localidades",
 }
 
-_RE_ID_PREFIJO = re.compile(r"^id[_-]?(?P<ent>.+)$", re.IGNORECASE)
-_RE_ID_SUFIJO = re.compile(r"^(?P<ent>.+?)[_-]?id$", re.IGNORECASE)
-_RE_ID_SUFIJO2 = re.compile(r"^(?P<ent>.+?)[_-]?(?:id|cod|code|nro|num)$", re.IGNORECASE)
+_RE_ID_PREFIJO_SEP = re.compile(r"^id[_-](?P<ent>.+)$", re.IGNORECASE)
+_RE_ID_SUFIJO_SEP = re.compile(r"^(?P<ent>.+?)[_-](?:id|cod|code|nro|num)$", re.IGNORECASE)
+_RE_ID_PREFIJO = re.compile(r"^id(?P<ent>[a-z].+)$", re.IGNORECASE)
+_RE_ID_SUFIJO = re.compile(r"^(?P<ent>.+?)id$", re.IGNORECASE)
 
 
 def _variantes(entidad: str) -> list[str]:
@@ -67,16 +68,31 @@ def _resolver(entidad: str, tablas: set[str], alias: dict[str, str]) -> str | No
     return None
 
 
-def _entidad_de_columna(nombre: str) -> str | None:
+def _entidades_de_columna(nombre: str) -> list[tuple[str, bool]]:
+    """Posibles entidades de una columna, con si el nombre lo dice explícitamente.
+
+    ``(entidad, explicita)``. "explícita" significa que hay un separador
+    (``id_cliente``, ``cliente_id``): si la tabla no existe, es una relación
+    huérfana de verdad. Sin separador (``valid``, ``guid``, ``idioma``) solo se
+    acepta si la entidad resuelve a una tabla real; si no, no es una FK.
+    """
     if nombre.lower() == "id":
-        return None
+        return []
+
+    candidatas: list[tuple[str, bool]] = []
+    m = _RE_ID_PREFIJO_SEP.match(nombre)
+    if m and len(m.group("ent")) > 1:
+        candidatas.append((m.group("ent"), True))
+    m = _RE_ID_SUFIJO_SEP.match(nombre)
+    if m and len(m.group("ent")) > 1:
+        candidatas.append((m.group("ent"), True))
     m = _RE_ID_PREFIJO.match(nombre)
     if m and len(m.group("ent")) > 1:
-        return m.group("ent")
+        candidatas.append((m.group("ent"), False))
     m = _RE_ID_SUFIJO.match(nombre)
     if m and len(m.group("ent")) > 1:
-        return m.group("ent")
-    return None
+        candidatas.append((m.group("ent"), False))
+    return candidatas
 
 
 def inferir_relaciones(schema: Schema, alias: dict[str, str] | None = None) -> list[Relation]:
@@ -104,15 +120,24 @@ def inferir_relaciones(schema: Schema, alias: dict[str, str] | None = None) -> l
                 del ref
                 continue
 
-            entidad = _entidad_de_columna(columna.name)
-            if not entidad:
+            candidatas = _entidades_de_columna(columna.name)
+            if not candidatas:
                 continue
 
-            destino = _resolver(entidad.lower(), set(tablas), mapa_alias)
-            if destino and destino != tabla.name.lower():
-                relaciones.append(Relation(tabla.name, columna.name, tablas[destino], "convencion"))
-            elif destino is None:
-                relaciones.append(Relation(tabla.name, columna.name, None, "huerfana"))
+            for entidad, _explicita in candidatas:
+                destino = _resolver(entidad.lower(), set(tablas), mapa_alias)
+                if destino and destino != tabla.name.lower():
+                    relaciones.append(
+                        Relation(tabla.name, columna.name, tablas[destino], "convencion")
+                    )
+                    break
+                if destino and destino == tabla.name.lower():
+                    break  # autorreferencia: no aporta como relación
+            else:
+                # Ninguna entidad resuelve. Solo es huérfana si el nombre la declara
+                # con separador: `idioma` o `guid` no son "FK a una tabla que falta".
+                if any(explicita for _, explicita in candidatas):
+                    relaciones.append(Relation(tabla.name, columna.name, None, "huerfana"))
 
     return relaciones
 
