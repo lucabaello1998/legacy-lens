@@ -211,6 +211,10 @@ docker run --rm -v "/ruta/al/proyecto:/work:ro" -v "$PWD/out:/out" legacy-lens \
   scan --path /work --dump /work/schema.sql --out /out
 ```
 
+La imagen corre con un usuario sin privilegios (`escaner`, uid 1000). En Linux, un
+`-v "$PWD/out:/out"` queda con el dueño del host y ese usuario no puede escribir:
+agregá `--user "$(id -u):$(id -g)"` al `docker run` (es lo que hace el CI).
+
 **3. Dentro de tu CI**, como gate de calidad con `--fail-over`:
 
 ```yaml

@@ -37,6 +37,9 @@ jobs:
       - name: Escanear el ejemplo dentro del contenedor
         run: |
           mkdir -p out
-          docker run --rm -v "$PWD/examples:/work:ro" -v "$PWD/out:/out" legacy-lens:ci \
+          # El contenedor corre sin root; en Linux el bind mount hereda el dueño del
+          # host, así que se le pasa el uid del runner para que pueda escribir.
+          docker run --rm --user "$(id -u):$(id -g)" \
+            -v "$PWD/examples:/work:ro" -v "$PWD/out:/out" legacy-lens:ci \
             scan --path /work/tienda-legacy/app --dump /work/tienda-legacy/schema.sql --out /out --quiet
           test -s out/report.html
