@@ -96,6 +96,23 @@ hallazgos altos:
   - Credencial hardcodeada (14)
 ```
 
+### Como leer el informe
+
+El HTML se abre solo, sin servidor y sin CDN. Tiene cuatro bloques:
+
+1. **Indice de dolor y sus cinco dimensiones**, cada una con las razones que la subieron
+   ("2 de 13 tablas sin PK", "cero foreign keys declaradas"). Si una dimension te parece injusta,
+   se discute con esos datos, no con el numero final.
+2. **Esquema**: tablas con filas, tamano, motor, charset, PK y columnas problemáticas.
+3. **Relaciones inferidas**: las que salen de la convencion del nombre y las huerfanas (apuntan a una
+   tabla que no existe), separadas a proposito.
+4. **Hallazgos y plan**: cada hallazgo con `archivo:linea`, severidad y cantidad de ocurrencias; el
+   plan de accion viene ordenado por prioridad y esfuerzo estimado.
+
+Los formatos son los mismos datos en tres formas: `report.html` para leer y compartir,
+`report.json` para guardar como linea base y comparar despues, `report.md` para pegar en un PR o un
+ticket. `--format json` genera solo uno.
+
 ### Opciones
 
 | Flag | Para que |
@@ -108,6 +125,15 @@ hallazgos altos:
 | `--alias` | alias de tablas: `--alias tec=tecnicos,cli=clientes` |
 | `--fail-over N` | sale con codigo 2 si el indice llega a N (para CI) |
 | `--quiet` | no imprime el resumen en consola |
+
+### Comandos
+
+| Comando | Que hace |
+|---|---|
+| `legacy-lens scan ...` | analiza un proyecto y escribe los informes |
+| `legacy-lens rules` | lista las reglas de codigo con su severidad; util para saber que busca |
+| `legacy-lens version` | version instalada |
+| `legacy-lens --help`, `legacy-lens scan --help` | ayuda completa de cada comando |
 
 ### En un pipeline
 
@@ -160,6 +186,46 @@ docker compose up -d mysql
 docker compose run --rm lens
 # informe en ./out/report.html
 ```
+
+## Despliegue y publicacion
+
+No es un servicio: es un CLI que corre donde esten el codigo y el dump. Tres formas de usarlo:
+
+**1. Local, instalado con pipx** (lo mas comodo para auditorias puntuales):
+
+```bash
+pipx install git+https://github.com/lucabaello1998/legacy-lens
+legacy-lens scan --path /ruta/al/proyecto --dump schema.sql --out informes
+```
+
+**2. En un contenedor** (no necesita Python en la maquina ni acceso de escritura fuera del volumen):
+
+```bash
+docker build -t legacy-lens .
+docker run --rm -v "/ruta/al/proyecto:/work:ro" -v "$PWD/out:/out" legacy-lens \
+  scan --path /work --dump /work/schema.sql --out /out
+```
+
+**3. Dentro de tu CI**, como gate de calidad con `--fail-over`:
+
+```yaml
+- run: legacy-lens scan --path . --dump schema.sql --out out --fail-over 80 --quiet
+```
+
+### Publicar el informe de ejemplo
+
+La pagina publica del repo es un informe real generado sobre `examples/tienda-legacy`:
+
+```bash
+legacy-lens scan --path examples/tienda-legacy/app --dump examples/tienda-legacy/schema.sql \
+  --title "Tienda legacy (ejemplo)" --out docs
+# escribir() deja docs/report.html; se renombra al que enlaza docs/index.html
+mv docs/report.html docs/ejemplo-reporte.html
+```
+
+`docs/` se sirve con GitHub Pages (*Settings → Pages → Deploy from a branch → main / docs*).
+El workflow de CI no publica nada: valida lint, los 50 tests, la imagen Docker y que el escaneo
+dentro del contenedor genere un informe no vacio.
 
 ## Origen
 

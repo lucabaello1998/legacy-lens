@@ -12,8 +12,23 @@ import re
 from .model import Finding, Occurrence, Relation, Schema
 
 PALABRAS_RESERVADAS = {
-    "order", "group", "key", "index", "table", "select", "where", "from", "by",
-    "desc", "asc", "status", "date", "time", "user", "password", "check",
+    "order",
+    "group",
+    "key",
+    "index",
+    "table",
+    "select",
+    "where",
+    "from",
+    "by",
+    "desc",
+    "asc",
+    "status",
+    "date",
+    "time",
+    "user",
+    "password",
+    "check",
 }
 _RE_NOMBRE_RARO = re.compile(r"[ .'\"\-#@/\\]|^[0-9]|[A-Z]")
 _RE_FECHA = re.compile(r"^(?:fec|fecha|date|dt)", re.IGNORECASE)
@@ -106,7 +121,8 @@ def revisar_esquema(schema: Schema, relaciones: list[Relation]) -> list[Finding]
         f"{t.name}.{c.name} ({c.type})"
         for t in schema.tables
         for c in t.columns
-        if re.match(r"^(?:id_|.*_id$)", c.name, re.IGNORECASE) and c.base_type in {"varchar", "char", "text", "tinytext"}
+        if re.match(r"^(?:id_|.*_id$)", c.name, re.IGNORECASE)
+        and c.base_type in {"varchar", "char", "text", "tinytext"}
     ]
     if id_texto:
         f = _hallazgo(
@@ -134,7 +150,8 @@ def revisar_esquema(schema: Schema, relaciones: list[Relation]) -> list[Finding]
     charset = [
         f"{t.name} ({t.charset})"
         for t in schema.tables
-        if t.charset and t.charset.lower() not in {"utf8mb4", "utf8mb4_unicode_ci", "utf8mb4_general_ci"}
+        if t.charset
+        and t.charset.lower() not in {"utf8mb4", "utf8mb4_unicode_ci", "utf8mb4_general_ci"}
     ]
     if charset:
         f = _hallazgo(
@@ -202,7 +219,7 @@ def revisar_esquema(schema: Schema, relaciones: list[Relation]) -> list[Finding]
     gemelas = []
     nombres = [t.name.lower() for t in schema.tables]
     for i, a in enumerate(nombres):
-        for b in nombres[i + 1:]:
+        for b in nombres[i + 1 :]:
             if a == b or min(len(a), len(b)) < 5:
                 continue
             if _levenshtein(a, b) <= 2:

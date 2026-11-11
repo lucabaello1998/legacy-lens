@@ -32,13 +32,19 @@ def _e(texto: str) -> str:
 
 
 def _barra(valor: int, color: str = "#4f46e5") -> str:
-    return (
-        f'<div class="bar"><span style="width:{max(2, valor)}%;background:{color}"></span></div>'
-    )
+    return f'<div class="bar"><span style="width:{max(2, valor)}%;background:{color}"></span></div>'
 
 
 def _gauge(score: int, etiqueta: str) -> str:
-    color = "#16a34a" if score <= 25 else "#d97706" if score <= 50 else "#ea580c" if score <= 75 else "#dc2626"
+    color = (
+        "#16a34a"
+        if score <= 25
+        else "#d97706"
+        if score <= 50
+        else "#ea580c"
+        if score <= 75
+        else "#dc2626"
+    )
     radio = 62
     circunferencia = 2 * 3.14159 * radio
     offset = circunferencia * (1 - score / 100)
@@ -82,13 +88,13 @@ def _finding_card(f: Finding) -> str:
             )
         resto = f.total - len(f.occurrences)
         mas = f'<li class="more">y {_n(resto)} casos mas...</li>' if resto > 0 else ""
-        filas = f'<ul class="occ">{ "".join(items) }{mas}</ul>'
+        filas = f'<ul class="occ">{"".join(items)}{mas}</ul>'
     return f"""
     <article class="finding">
       <header>
         <span class="sev" style="background:{color}">{_e(SEV_LABEL.get(f.severity, f.severity))}</span>
         <h4>{_e(f.title)}</h4>
-        <span class="count">{_n(f.count)} caso{'s' if f.count != 1 else ''}</span>
+        <span class="count">{_n(f.count)} caso{"s" if f.count != 1 else ""}</span>
       </header>
       <p class="detail">{_e(f.detail)}</p>
       {filas}
@@ -106,7 +112,15 @@ def generar_html(report: Report) -> str:
     dimensiones = ""
     if score:
         for d in score.dimensions:
-            color = "#16a34a" if d.value <= 25 else "#d97706" if d.value <= 50 else "#ea580c" if d.value <= 75 else "#dc2626"
+            color = (
+                "#16a34a"
+                if d.value <= 25
+                else "#d97706"
+                if d.value <= 50
+                else "#ea580c"
+                if d.value <= 75
+                else "#dc2626"
+            )
             razones = "".join(f"<li>{_e(r)}</li>" for r in d.reasons)
             dimensiones += f"""
             <div class="dim">
@@ -139,10 +153,10 @@ def generar_html(report: Report) -> str:
         filas_tablas += f"""
         <tr>
           <td><code>{_e(t.name)}</code></td>
-          <td class="num">{_n(t.rows)}{'' if not t.rows_estimated else '*'}</td>
+          <td class="num">{_n(t.rows)}{"" if not t.rows_estimated else "*"}</td>
           <td class="num">{_n(len(t.columns))}</td>
-          <td>{_e(t.engine or '-')}</td>
-          <td class="{'ok' if t.has_primary_key else 'bad'}">{pk}</td>
+          <td>{_e(t.engine or "-")}</td>
+          <td class="{"ok" if t.has_primary_key else "bad"}">{pk}</td>
           <td class="num">{fk}</td>
         </tr>
         """
@@ -162,7 +176,11 @@ def generar_html(report: Report) -> str:
         """
 
     secciones = ""
-    for categoria, titulo in (("esquema", "Esquema"), ("seguridad", "Seguridad"), ("codigo", "Codigo")):
+    for categoria, titulo in (
+        ("esquema", "Esquema"),
+        ("seguridad", "Seguridad"),
+        ("codigo", "Codigo"),
+    ):
         hallazgos = report.by_category(categoria)
         if not hallazgos:
             continue
@@ -278,8 +296,8 @@ def generar_html(report: Report) -> str:
       <div class="brand">legacy-lens · radiografia de un sistema legacy</div>
       <h1>{_e(report.title)}</h1>
       <div class="meta">
-        Codigo: <code>{_e(report.target_path or '-')}</code> ·
-        Esquema: <code>{_e(s.source or '-')}</code> ·
+        Codigo: <code>{_e(report.target_path or "-")}</code> ·
+        Esquema: <code>{_e(s.source or "-")}</code> ·
         Generado: {_e(generado)}
       </div>
     </div>
@@ -381,7 +399,9 @@ def generar_json(report: Report) -> str:
     return json.dumps(report.as_dict(), ensure_ascii=False, indent=2)
 
 
-def escribir(report: Report, out_dir: str, formatos: tuple[str, ...] = ("html", "json", "md")) -> list[str]:
+def escribir(
+    report: Report, out_dir: str, formatos: tuple[str, ...] = ("html", "json", "md")
+) -> list[str]:
     base = Path(out_dir)
     base.mkdir(parents=True, exist_ok=True)
     generados: list[str] = []

@@ -43,7 +43,9 @@ class Rule:
     per_file: bool = False
 
 
-SQL_KEYWORDS = r"(?:SELECT\s+.+\s+FROM|INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM|REPLACE\s+INTO)"
+SQL_KEYWORDS = (
+    r"(?:SELECT\s+.+\s+FROM|INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM|REPLACE\s+INTO)"
+)
 SUPERGLOBAL = r"\$_(?:GET|POST|REQUEST|COOKIE)"
 
 REGLAS: tuple[Rule, ...] = (
@@ -286,7 +288,7 @@ def _enmascarar(texto: str, conservar: str = "ultimo") -> str:
     salida: list[str] = []
     cursor = 0
     for i, m in enumerate(literales):
-        salida.append(texto[cursor: m.start(2)])
+        salida.append(texto[cursor : m.start(2)])
         salida.append(m.group(2) if i in visibles else "***")
         cursor = m.end(2)
     salida.append(texto[cursor:])
@@ -303,9 +305,9 @@ def _leer(path: str) -> str:
         return fh.read()
 
 
-def escanear_codigo(base: str, limite_ocurrencias: int = MAX_OCURRENCIAS_POR_REGLA) -> tuple[
-    CodeStats, list[Finding]
-]:
+def escanear_codigo(
+    base: str, limite_ocurrencias: int = MAX_OCURRENCIAS_POR_REGLA
+) -> tuple[CodeStats, list[Finding]]:
     """Recorre el arbol PHP y devuelve estadisticas + hallazgos agregados."""
     stats = CodeStats()
     acumulado: dict[str, Finding] = {}
@@ -366,17 +368,13 @@ def escanear_codigo(base: str, limite_ocurrencias: int = MAX_OCURRENCIAS_POR_REG
                     else:
                         original = _enmascarar(original, modo)
                 snippet = _recortar(original)
-                hallazgo.occurrences.append(
-                    Occurrence(file=relativo, line=numero, snippet=snippet)
-                )
+                hallazgo.occurrences.append(Occurrence(file=relativo, line=numero, snippet=snippet))
 
     stats.largest.sort(key=lambda x: x[1], reverse=True)
     stats.largest = stats.largest[:10]
 
     # Tests: la ausencia es en si misma un hallazgo de modernidad.
-    stats.has_tests = any(
-        os.path.isdir(os.path.join(base, d)) for d in ("tests", "test", "spec")
-    )
+    stats.has_tests = any(os.path.isdir(os.path.join(base, d)) for d in ("tests", "test", "spec"))
 
     hallazgos: list[Finding] = []
     for regla in REGLAS:

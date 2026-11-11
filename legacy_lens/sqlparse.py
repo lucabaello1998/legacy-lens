@@ -1,4 +1,4 @@
-﻿"""Lector de esquemas MySQL a partir de un dump .sql.
+"""Lector de esquemas MySQL a partir de un dump .sql.
 
 No hace falta una base viva para analizar el esquema: alcanza con el
 `mysqldump --no-data`. El parser es deliberadamente tolerante, porque los
@@ -37,7 +37,7 @@ def _limpiar(sql: str) -> str:
 
 
 def _identificador(nombre: str) -> str:
-    return nombre.strip().strip("`\"").strip()
+    return nombre.strip().strip('`"').strip()
 
 
 def _dividir_definiciones(cuerpo: str) -> list[str]:
@@ -81,7 +81,7 @@ def _parsear_columna(definicion: str) -> Column | None:
         if fin == -1:
             return None
         nombre = texto[1:fin]
-        resto = texto[fin + 1:].strip()
+        resto = texto[fin + 1 :].strip()
     else:
         partes = texto.split(None, 1)
         if len(partes) < 2:
@@ -132,8 +132,8 @@ def parsear_dump(sql: str, source: str = "dump.sql") -> Schema:
                 profundidad -= 1
             i += 1
 
-        cuerpo = texto[inicio:i - 1]
-        cola = texto[i:i + 400]
+        cuerpo = texto[inicio : i - 1]
+        cola = texto[i : i + 400]
         tabla = Table(name=nombre_tabla)
 
         motor = _RE_ENGINE.search(cola)

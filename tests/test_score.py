@@ -13,7 +13,10 @@ def _esquema_minimo() -> Schema:
     )
     pedidos = Table(
         name="pedidos",
-        columns=[Column(name="id_cliente", type="int(11)"), Column(name="fecha", type="varchar(10)")],
+        columns=[
+            Column(name="id_cliente", type="int(11)"),
+            Column(name="fecha", type="varchar(10)"),
+        ],
         engine="MyISAM",
         charset="latin1",
     )

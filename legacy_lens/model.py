@@ -28,8 +28,15 @@ class Column:
     @property
     def is_numeric(self) -> bool:
         return self.base_type in {
-            "int", "bigint", "smallint", "tinyint", "mediumint",
-            "decimal", "float", "double", "numeric",
+            "int",
+            "bigint",
+            "smallint",
+            "tinyint",
+            "mediumint",
+            "decimal",
+            "float",
+            "double",
+            "numeric",
         }
 
     def as_dict(self) -> dict:

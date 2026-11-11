@@ -79,9 +79,7 @@ def _entidad_de_columna(nombre: str) -> str | None:
     return None
 
 
-def inferir_relaciones(
-    schema: Schema, alias: dict[str, str] | None = None
-) -> list[Relation]:
+def inferir_relaciones(schema: Schema, alias: dict[str, str] | None = None) -> list[Relation]:
     tablas = {t.name.lower(): t.name for t in schema.tables}
     mapa_alias = {**ALIAS_POR_DEFECTO, **(alias or {})}
     mapa_alias = {k.lower(): v.lower() for k, v in mapa_alias.items()}
@@ -102,9 +100,7 @@ def inferir_relaciones(
                     (rt for c, rt, _ in tabla.foreign_keys if c.lower() == columna.name.lower()),
                     None,
                 )
-                relaciones.append(
-                    Relation(tabla.name, columna.name, ref_tabla, "declarada")
-                )
+                relaciones.append(Relation(tabla.name, columna.name, ref_tabla, "declarada"))
                 del ref
                 continue
 
@@ -114,9 +110,7 @@ def inferir_relaciones(
 
             destino = _resolver(entidad.lower(), set(tablas), mapa_alias)
             if destino and destino != tabla.name.lower():
-                relaciones.append(
-                    Relation(tabla.name, columna.name, tablas[destino], "convencion")
-                )
+                relaciones.append(Relation(tabla.name, columna.name, tablas[destino], "convencion"))
             elif destino is None:
                 relaciones.append(Relation(tabla.name, columna.name, None, "huerfana"))
 

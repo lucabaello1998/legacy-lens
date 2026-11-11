@@ -16,7 +16,12 @@ def test_relacion_por_convencion():
     relaciones = inferir_relaciones(schema)
     assert len(relaciones) == 1
     r = relaciones[0]
-    assert (r.table, r.column, r.target, r.kind) == ("pedidos", "id_cliente", "clientes", "convencion")
+    assert (r.table, r.column, r.target, r.kind) == (
+        "pedidos",
+        "id_cliente",
+        "clientes",
+        "convencion",
+    )
 
 
 def test_relacion_huerfana():

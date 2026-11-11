@@ -18,7 +18,9 @@ def _reporte() -> Report:
         ],
         source="dump.sql",
     )
-    report = Report(title="Demo <b>raro</b>", target_path="app", schema=schema, code=CodeStats(files=2, loc=30))
+    report = Report(
+        title="Demo <b>raro</b>", target_path="app", schema=schema, code=CodeStats(files=2, loc=30)
+    )
     report.findings = [
         Finding(
             rule="mysql_extinta",
