@@ -1,0 +1,23 @@
+# Actualizaciones semanales. Los parches y menores van agrupados en un PR por
+# ecosistema para que no caigan diez a la vez; las mayores quedan separadas
+# porque suelen romper y hay que mirarlas.
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      menores:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      menores:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
